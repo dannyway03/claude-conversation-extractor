@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Error handling and edge case tests for meaningful coverage
 """
@@ -14,8 +13,7 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from extract_claude_logs import (ClaudeConversationExtractor,  # noqa: E402
-                                 launch_interactive, main)
+from extract_claude_logs import ClaudeConversationExtractor, launch_interactive, main  # noqa: E402
 
 
 class TestErrorHandling(unittest.TestCase):
@@ -33,7 +31,7 @@ class TestErrorHandling(unittest.TestCase):
 
     def test_init_fallback_all_dirs_fail(self):
         """Test init when all directory creation attempts fail"""
-        with patch("pathlib.Path.mkdir", side_effect=Exception("Permission denied")):
+        with patch("pathlib.Path.mkdir", side_effect=Exception("Permission denied")):  # noqa: SIM117
             with patch("pathlib.Path.touch", side_effect=Exception("No write access")):
                 with patch("pathlib.Path.cwd", return_value=Path(self.temp_dir)):
                     # Should still create extractor, falling back to cwd
