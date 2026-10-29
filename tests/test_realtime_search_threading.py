@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from realtime_search import RealTimeSearch  # noqa: E402
+from realtime_search import RealTimeSearch
 
 
 class TestRealTimeSearchThreading(unittest.TestCase):
@@ -214,14 +214,14 @@ class TestRealTimeSearchUI(unittest.TestCase):
 
         mock_keyboard = Mock()
         mock_keyboard_class.return_value.__enter__.return_value = mock_keyboard
-        mock_keyboard.get_key.side_effect = Exception("Test error")
+        mock_keyboard.get_key.side_effect = RuntimeError("Test error")
 
         # Mock thread
         mock_thread = Mock()
         mock_thread_class.return_value = mock_thread
 
         # Should handle exception and clean up
-        with self.assertRaises(Exception):
+        with self.assertRaises(RuntimeError):
             self.rts.run()
 
         # Cleanup should still happen

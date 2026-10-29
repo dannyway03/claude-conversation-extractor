@@ -4,6 +4,7 @@ Aligned tests for extract_claude_logs.py with meaningful coverage
 """
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -15,7 +16,7 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from extract_claude_logs import ClaudeConversationExtractor, main  # noqa: E402
+from extract_claude_logs import ClaudeConversationExtractor, main
 
 
 class TestClaudeConversationExtractor(unittest.TestCase):
@@ -50,9 +51,8 @@ class TestClaudeConversationExtractor(unittest.TestCase):
         def mkdir_side_effect(self_path, *args, **kwargs):
             # Fail all mkdir calls except the final fallback (exist_ok=True, no parents)
             if kwargs.get("parents"):
-                raise Exception("Permission denied")
+                raise OSError("Permission denied")
             # Allow the final fallback mkdir (exist_ok only) to succeed silently
-            return None
 
         with patch("pathlib.Path.mkdir", mkdir_side_effect):
             with patch("pathlib.Path.cwd", return_value=Path(self.temp_dir)):
@@ -251,14 +251,14 @@ class TestClaudeConversationExtractor(unittest.TestCase):
 
     def test_list_recent_sessions_with_files(self):
         """Test listing sessions with files"""
-        # Create mock session files
+        # Create actual session files
         mock_sessions = []
         for i in range(15):
-            session = Mock(spec=Path)
-            session.parent.name = f"project{i}"
-            session.stem = f"chat_{i:03d}"
-            session.stat.return_value.st_mtime = 1234567890 + i * 1000
-            session.stat.return_value.st_size = 1024 * (i + 1)
+            session = Path(self.temp_dir) / f"session{i}.jsonl"
+            session.write_text(f'{{"type": "test", "content": "message {i}"}}\n')
+            # Set modification time
+            timestamp = 1234567890 + i * 1000
+            os.utime(session, (timestamp, timestamp))
             mock_sessions.append(session)
 
         with patch.object(self.extractor, "find_sessions", return_value=mock_sessions):
@@ -280,16 +280,14 @@ class TestClaudeConversationExtractor(unittest.TestCase):
 
         with patch.object(
             self.extractor, "extract_conversation", side_effect=conversations
-        ):
-            with patch.object(
-                self.extractor, "save_as_markdown", return_value=Path("test.md")
-            ):
-                with patch("builtins.print"):
-                    success, total = self.extractor.extract_multiple(
-                        sessions, [0, 1, 2]
-                    )
-                    self.assertEqual(success, 3)
-                    self.assertEqual(total, 3)
+        ), patch.object(
+            self.extractor, "save_as_markdown", return_value=Path("test.md")
+        ), patch("builtins.print"):
+            success, total = self.extractor.extract_multiple(
+                sessions, [0, 1, 2]
+            )
+            self.assertEqual(success, 3)
+            self.assertEqual(total, 3)
 
     def test_extract_multiple_with_failures(self):
         """Test extract_multiple with some failures"""
@@ -300,17 +298,15 @@ class TestClaudeConversationExtractor(unittest.TestCase):
             self.extractor,
             "extract_conversation",
             side_effect=[[], [{"role": "user", "content": "Hi"}]],
-        ):
-            with patch.object(
-                self.extractor, "save_as_markdown", return_value=Path("test.md")
-            ):
-                with patch("builtins.print") as mock_print:
-                    success, total = self.extractor.extract_multiple(sessions, [0, 1])
-                    self.assertEqual(success, 1)
-                    self.assertEqual(total, 2)
-                    # Should print skip message
-                    print_calls = [str(call) for call in mock_print.call_args_list]
-                    self.assertTrue(any("Skipped" in str(call) for call in print_calls))
+        ), patch.object(
+            self.extractor, "save_as_markdown", return_value=Path("test.md")
+        ), patch("builtins.print") as mock_print:
+            success, total = self.extractor.extract_multiple(sessions, [0, 1])
+            self.assertEqual(success, 1)
+            self.assertEqual(total, 2)
+            # Should print skip message
+            print_calls = [str(call) for call in mock_print.call_args_list]
+            self.assertTrue(any("Skipped" in str(call) for call in print_calls))
 
     def test_extract_multiple_invalid_indices(self):
         """Test extract_multiple with invalid indices"""
@@ -369,19 +365,16 @@ class TestMainFunction(unittest.TestCase):
 
             with patch.object(
                 ClaudeConversationExtractor, "find_sessions", return_value=mock_sessions
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(1, 1)
-                ) as mock_extract:
-                    with patch.object(
-                        ClaudeConversationExtractor, "list_recent_sessions"
-                    ):
-                        with patch("builtins.print"):
-                            main()
-                            # Should extract index 0 (1-based to 0-based)
-                            mock_extract.assert_called_once()
-                            args = mock_extract.call_args[0]
-                            self.assertEqual(args[1], [0])
+            ), patch.object(
+                ClaudeConversationExtractor, "extract_multiple", return_value=(1, 1)
+            ) as mock_extract, patch.object(
+                ClaudeConversationExtractor, "list_recent_sessions"
+            ), patch("builtins.print"):
+                main()
+                # Should extract index 0 (1-based to 0-based)
+                mock_extract.assert_called_once()
+                args = mock_extract.call_args[0]
+                self.assertEqual(args[1], [0])
 
     def test_main_extract_multiple(self):
         """Test --extract with multiple indices"""
@@ -390,18 +383,15 @@ class TestMainFunction(unittest.TestCase):
 
             with patch.object(
                 ClaudeConversationExtractor, "find_sessions", return_value=mock_sessions
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(3, 3)
-                ) as mock_extract:
-                    with patch.object(
-                        ClaudeConversationExtractor, "list_recent_sessions"
-                    ):
-                        with patch("builtins.print"):
-                            main()
-                            # Should extract indices 0, 2, 4 (1-based to 0-based)
-                            args = mock_extract.call_args[0]
-                            self.assertEqual(args[1], [0, 2, 4])
+            ), patch.object(
+                ClaudeConversationExtractor, "extract_multiple", return_value=(3, 3)
+            ) as mock_extract, patch.object(
+                ClaudeConversationExtractor, "list_recent_sessions"
+            ), patch("builtins.print"):
+                main()
+                # Should extract indices 0, 2, 4 (1-based to 0-based)
+                args = mock_extract.call_args[0]
+                self.assertEqual(args[1], [0, 2, 4])
 
     def test_main_recent(self):
         """Test --recent command"""
@@ -410,18 +400,15 @@ class TestMainFunction(unittest.TestCase):
 
             with patch.object(
                 ClaudeConversationExtractor, "find_sessions", return_value=mock_sessions
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(3, 3)
-                ) as mock_extract:
-                    with patch.object(
-                        ClaudeConversationExtractor, "list_recent_sessions"
-                    ):
-                        with patch("builtins.print"):
-                            main()
-                            # Should extract first 3 sessions
-                            args = mock_extract.call_args[0]
-                            self.assertEqual(args[1], [0, 1, 2])
+            ), patch.object(
+                ClaudeConversationExtractor, "extract_multiple", return_value=(3, 3)
+            ) as mock_extract, patch.object(
+                ClaudeConversationExtractor, "list_recent_sessions"
+            ), patch("builtins.print"):
+                main()
+                # Should extract first 3 sessions
+                args = mock_extract.call_args[0]
+                self.assertEqual(args[1], [0, 1, 2])
 
     def test_main_all(self):
         """Test --all command"""
@@ -430,33 +417,29 @@ class TestMainFunction(unittest.TestCase):
 
             with patch.object(
                 ClaudeConversationExtractor, "find_sessions", return_value=mock_sessions
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(5, 5)
-                ) as mock_extract:
-                    with patch.object(
-                        ClaudeConversationExtractor, "list_recent_sessions"
-                    ):
-                        with patch("builtins.print"):
-                            main()
-                            # Should extract all sessions
-                            args = mock_extract.call_args[0]
-                            self.assertEqual(args[1], [0, 1, 2, 3, 4])
+            ), patch.object(
+                ClaudeConversationExtractor, "extract_multiple", return_value=(5, 5)
+            ) as mock_extract, patch.object(
+                ClaudeConversationExtractor, "list_recent_sessions"
+            ), patch("builtins.print"):
+                main()
+                # Should extract all sessions
+                args = mock_extract.call_args[0]
+                self.assertEqual(args[1], [0, 1, 2, 3, 4])
 
     def test_main_output_dir(self):
         """Test --output flag"""
         custom_output = self.temp_dir
         with patch(
             "sys.argv", ["extract_claude_logs.py", "--list", "--output", custom_output]
-        ):
-            with patch("extract_claude_logs.ClaudeConversationExtractor") as mock_class:
-                mock_instance = Mock()
-                mock_instance.list_recent_sessions.return_value = []
-                mock_class.return_value = mock_instance
-                with patch("builtins.print"):
-                    main()
-                    # Should initialize with custom output
-                    mock_class.assert_called_once_with(custom_output, None)
+        ), patch("extract_claude_logs.ClaudeConversationExtractor") as mock_class:
+            mock_instance = Mock()
+            mock_instance.list_recent_sessions.return_value = []
+            mock_class.return_value = mock_instance
+            with patch("builtins.print"):
+                main()
+                # Should initialize with custom output
+                mock_class.assert_called_once_with(custom_output, None)
 
     def test_main_interactive_flag(self):
         """Test --interactive flag launches InteractiveUI"""

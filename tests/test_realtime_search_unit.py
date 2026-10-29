@@ -13,7 +13,7 @@ from unittest.mock import Mock
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from realtime_search import RealTimeSearch, create_smart_searcher  # noqa: E402
+from realtime_search import RealTimeSearch, create_smart_searcher
 
 
 class TestRealTimeSearchUnit(unittest.TestCase):
@@ -208,7 +208,7 @@ class TestRealTimeSearchUnit(unittest.TestCase):
         self.rts.state.query = "error query"
 
         # Make search raise exception
-        self.mock_searcher.search.side_effect = Exception("Search failed")
+        self.mock_searcher.search.side_effect = RuntimeError("Search failed")
 
         # Simulate error handling
         try:
@@ -219,7 +219,7 @@ class TestRealTimeSearchUnit(unittest.TestCase):
                 case_sensitive=False,
             )
             self.rts.state.results = []  # This shouldn't execute
-        except Exception:
+        except (OSError, ValueError, RuntimeError):
             # Handle error by setting empty results
             self.rts.state.results = []
 

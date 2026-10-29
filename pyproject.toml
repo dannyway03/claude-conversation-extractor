@@ -60,3 +60,12 @@ claude-search = "search_cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 exclude = ["tests*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+ignore = [
+    "SIM117",  # Allow nested with statements for test readability
+]

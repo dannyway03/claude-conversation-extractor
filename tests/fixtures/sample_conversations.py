@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Sample conversations for testing search functionality
 """
@@ -148,8 +147,7 @@ class ConversationFixtures:
 
                 # Write messages as JSONL
                 with open(chat_file, "w") as f:
-                    for msg in conv_data["messages"]:
-                        f.write(json.dumps(msg) + "\n")
+                    f.writelines(json.dumps(msg) + "\n" for msg in conv_data["messages"])
 
                 all_files.append(chat_file)
                 conversation_idx += 1

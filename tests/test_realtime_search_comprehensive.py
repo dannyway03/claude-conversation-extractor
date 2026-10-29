@@ -15,8 +15,13 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from realtime_search import (KeyboardHandler, RealTimeSearch, SearchState,  # noqa: E402
-                             TerminalDisplay, create_smart_searcher)
+from realtime_search import (
+    KeyboardHandler,
+    RealTimeSearch,
+    SearchState,
+    TerminalDisplay,
+    create_smart_searcher,
+)
 
 
 class TestSearchStateComprehensive(unittest.TestCase):
@@ -57,7 +62,6 @@ class TestKeyboardHandlerComprehensive(unittest.TestCase):
     @patch("sys.platform", "darwin")
     def test_unix_keyboard_special_keys(self):
         """Test Unix keyboard handler with all special keys"""
-        pass
 
     @patch("sys.platform", "darwin")
     def test_unix_keyboard_ctrl_c(self):
@@ -236,7 +240,6 @@ class TestTerminalDisplayComprehensive(unittest.TestCase):
     @patch("sys.stdout")
     def test_draw_search_box(self, mock_stdout):
         """Test drawing search input box"""
-        pass
 
 
 class TestRealTimeSearchComprehensive(unittest.TestCase):
@@ -389,7 +392,6 @@ class TestRealTimeSearchComprehensive(unittest.TestCase):
     @patch("realtime_search.TerminalDisplay")
     def test_run_exception_handling(self, mock_display_class, mock_keyboard_class):
         """Test run method exception handling"""
-        pass
 
     def test_handle_input_no_results_for_enter(self):
         """Test pressing Enter with no results"""

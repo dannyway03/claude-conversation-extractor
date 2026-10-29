@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Error handling and edge case tests for meaningful coverage
 """
@@ -13,7 +14,7 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from extract_claude_logs import ClaudeConversationExtractor, launch_interactive, main  # noqa: E402
+from extract_claude_logs import ClaudeConversationExtractor, launch_interactive, main
 
 
 class TestErrorHandling(unittest.TestCase):
@@ -33,8 +34,8 @@ class TestErrorHandling(unittest.TestCase):
 
     def test_init_fallback_all_dirs_fail(self):
         """Test init when all directory creation attempts fail"""
-        with patch("pathlib.Path.mkdir", side_effect=Exception("Permission denied")):  # noqa: SIM117
-            with patch("pathlib.Path.touch", side_effect=Exception("No write access")):
+        with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
+            with patch("pathlib.Path.touch", side_effect=OSError("No write access")):
                 with patch("pathlib.Path.cwd", return_value=Path(self.temp_dir)):
                     extractor = ClaudeConversationExtractor(None, claude_dir=self.claude_dir)
                     self.assertIn("claude-logs", str(extractor.output_dir))
@@ -59,7 +60,7 @@ class TestErrorHandling(unittest.TestCase):
         extractor = ClaudeConversationExtractor(self.temp_dir, claude_dir=self.claude_dir)
         conversation = [{"role": "user", "content": "Test", "timestamp": ""}]
 
-        with patch("builtins.open", side_effect=IOError("Disk full")):
+        with patch("builtins.open", side_effect=OSError("Disk full")):
             _ = extractor.save_as_markdown(conversation, Path(self.temp_dir) / "test.jsonl")
 
     def test_list_recent_sessions_no_sessions_messages(self):
@@ -214,17 +215,16 @@ class TestSearchFunctionality(unittest.TestCase):
                             ConversationSearcher=Mock(return_value=mock_searcher)
                         )
                     },
-                ):
-                    with patch("builtins.print") as mock_print:
-                        with patch("builtins.input", return_value=""):
-                            main()
+                ), patch("builtins.print") as mock_print:
+                    with patch("builtins.input", return_value=""):
+                        main()
 
-                        mock_searcher.search.assert_called()
+                    mock_searcher.search.assert_called()
 
-                        print_calls = [str(call) for call in mock_print.call_args_list]
-                        self.assertTrue(
-                            any("Found 1 matches" in str(call) for call in print_calls)
-                        )
+                    print_calls = [str(call) for call in mock_print.call_args_list]
+                    self.assertTrue(
+                        any("Found 1 matches" in str(call) for call in print_calls)
+                    )
 
     def test_main_search_with_filters(self):
         """Test search with all filter options"""
@@ -251,20 +251,19 @@ class TestSearchFunctionality(unittest.TestCase):
                         ConversationSearcher=Mock(return_value=mock_searcher)
                     )
                 },
-            ):
-                with patch("builtins.print"):
-                    # --project validation will fail if dir doesn't exist under claude_dir;
-                    # encode the temp_dir path and create the directory so validation passes
-                    from extract_claude_logs import encode_project_path
-                    encoded = encode_project_path(self.temp_dir)
-                    (self.claude_dir / encoded).mkdir(parents=True, exist_ok=True)
-                    main()
+            ), patch("builtins.print"):
+                # --project validation will fail if dir doesn't exist under claude_dir;
+                # encode the temp_dir path and create the directory so validation passes
+                from extract_claude_logs import encode_project_path
+                encoded = encode_project_path(self.temp_dir)
+                (self.claude_dir / encoded).mkdir(parents=True, exist_ok=True)
+                main()
 
-                    mock_searcher.search.assert_called_once()
-                    call_kwargs = mock_searcher.search.call_args[1]
-                    self.assertEqual(call_kwargs["speaker_filter"], "human")
-                    self.assertTrue(call_kwargs["case_sensitive"])
-                    self.assertIsNotNone(call_kwargs["search_dir"])
+                mock_searcher.search.assert_called_once()
+                call_kwargs = mock_searcher.search.call_args[1]
+                self.assertEqual(call_kwargs["speaker_filter"], "human")
+                self.assertTrue(call_kwargs["case_sensitive"])
+                self.assertIsNotNone(call_kwargs["search_dir"])
 
 
 class TestInteractiveMode(unittest.TestCase):

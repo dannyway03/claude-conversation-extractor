@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from search_conversations import ConversationSearcher, SearchResult  # noqa: E402
+from search_conversations import ConversationSearcher, SearchResult
 
 
 class TestSearchResult(unittest.TestCase):
@@ -103,8 +103,7 @@ class TestConversationSearcher(unittest.TestCase):
         ]
 
         with open(project1 / "chat_001.jsonl", "w") as f:
-            for msg in conv1:
-                f.write(json.dumps(msg) + "\n")
+            f.writelines(json.dumps(msg) + "\n" for msg in conv1)
 
         # Project 2: JavaScript discussion
         project2 = Path(self.temp_dir) / ".claude" / "projects" / "js_project"
@@ -119,8 +118,7 @@ class TestConversationSearcher(unittest.TestCase):
         ]
 
         with open(project2 / "chat_002.jsonl", "w") as f:
-            for msg in conv2:
-                f.write(json.dumps(msg) + "\n")
+            f.writelines(json.dumps(msg) + "\n" for msg in conv2)
 
     def test_search_exact_match(self):
         """Test exact string matching"""
@@ -410,8 +408,7 @@ class TestSearchIntegration(unittest.TestCase):
         ]
 
         with open(project / "chat_test.jsonl", "w") as f:
-            for msg in conversation:
-                f.write(json.dumps(msg) + "\n")
+            f.writelines(json.dumps(msg) + "\n" for msg in conversation)
 
         with patch("pathlib.Path.home", return_value=Path(self.temp_dir)):
             # Search for error handling

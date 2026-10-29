@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from extract_claude_logs import ClaudeConversationExtractor, main  # noqa: E402
+from extract_claude_logs import ClaudeConversationExtractor, main
 
 
 class TestClaudeConversationExtractorComprehensive(unittest.TestCase):
@@ -247,99 +247,88 @@ class TestClaudeConversationExtractorComprehensive(unittest.TestCase):
         with patch(
             "sys.argv",
             ["extract_claude_logs.py", "--extract", "1", "--output", self.temp_dir],
-        ):
-            with patch.object(
-                ClaudeConversationExtractor,
-                "find_sessions",
-                return_value=[Path("test.jsonl")],
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(1, 1)
-                ):
-                    with patch("builtins.print"):
-                        main()
+        ), patch.object(
+            ClaudeConversationExtractor,
+            "find_sessions",
+            return_value=[Path("test.jsonl")],
+        ), patch.object(
+            ClaudeConversationExtractor, "extract_multiple", return_value=(1, 1)
+        ), patch("builtins.print"):
+            main()
 
     def test_main_extract_multiple_comma(self):
         """Test main function with comma-separated indices"""
         with patch(
             "sys.argv",
             ["extract_claude_logs.py", "--extract", "1,2,3", "--output", self.temp_dir],
-        ):
-            with patch.object(
-                ClaudeConversationExtractor,
-                "find_sessions",
-                return_value=[Path(f"test{i}.jsonl") for i in range(5)],
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(3, 3)
-                ) as mock_extract:
-                    with patch("builtins.print"):
-                        main()
-                    # Should extract indices 0, 1, 2 (1-based to 0-based)
-                    args = mock_extract.call_args[0]
-                    self.assertEqual(args[1], [0, 1, 2])
+        ), patch.object(
+            ClaudeConversationExtractor,
+            "find_sessions",
+            return_value=[Path(f"test{i}.jsonl") for i in range(5)],
+        ), patch.object(
+            ClaudeConversationExtractor, "extract_multiple", return_value=(3, 3)
+        ) as mock_extract:
+            with patch("builtins.print"):
+                main()
+            # Should extract indices 0, 1, 2 (1-based to 0-based)
+            args = mock_extract.call_args[0]
+            self.assertEqual(args[1], [0, 1, 2])
 
     def test_main_recent(self):
         """Test main function with --recent: calls find_sessions + extract_multiple"""
         with patch(
             "sys.argv",
             ["extract_claude_logs.py", "--recent", "5", "--output", self.temp_dir],
-        ):
-            with patch.object(
-                ClaudeConversationExtractor,
-                "find_sessions",
-                return_value=[],
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(0, 0)
-                ) as mock_extract:
-                    with patch("builtins.print"):
-                        main()
-                    mock_extract.assert_called_once()
+        ), patch.object(
+            ClaudeConversationExtractor,
+            "find_sessions",
+            return_value=[],
+        ), patch.object(
+            ClaudeConversationExtractor, "extract_multiple", return_value=(0, 0)
+        ) as mock_extract:
+            with patch("builtins.print"):
+                main()
+            mock_extract.assert_called_once()
 
     def test_main_all(self):
         """Test main function with --all: calls find_sessions + extract_multiple"""
         with patch(
             "sys.argv",
             ["extract_claude_logs.py", "--all", "--output", self.temp_dir],
-        ):
-            with patch.object(
-                ClaudeConversationExtractor,
-                "find_sessions",
-                return_value=[],
-            ):
-                with patch.object(
-                    ClaudeConversationExtractor, "extract_multiple", return_value=(0, 0)
-                ) as mock_extract:
-                    with patch("builtins.print"):
-                        main()
-                    mock_extract.assert_called_once()
+        ), patch.object(
+            ClaudeConversationExtractor,
+            "find_sessions",
+            return_value=[],
+        ), patch.object(
+            ClaudeConversationExtractor, "extract_multiple", return_value=(0, 0)
+        ) as mock_extract:
+            with patch("builtins.print"):
+                main()
+            mock_extract.assert_called_once()
 
     def test_main_interactive(self):
         """Test main function with --interactive"""
         with patch(
             "sys.argv",
             ["extract_claude_logs.py", "--interactive", "--output", self.temp_dir],
-        ):
-            with patch("interactive_ui.InteractiveUI") as mock_ui_cls:
-                mock_ui_cls.return_value.run = Mock()
-                with patch("builtins.print"):
-                    main()
-                mock_ui_cls.assert_called_once()
-                mock_ui_cls.return_value.run.assert_called_once()
+        ), patch("interactive_ui.InteractiveUI") as mock_ui_cls:
+            mock_ui_cls.return_value.run = Mock()
+            with patch("builtins.print"):
+                main()
+            mock_ui_cls.assert_called_once()
+            mock_ui_cls.return_value.run.assert_called_once()
 
     def test_main_export(self):
         """Test main function with --export"""
         with patch(
             "sys.argv",
             ["extract_claude_logs.py", "--export", "logs", "--output", self.temp_dir],
-        ):
-            with patch("interactive_ui.InteractiveUI") as mock_ui_cls:
-                mock_ui_cls.return_value.run = Mock()
-                with patch("builtins.print"):
-                    main()
-                mock_ui_cls.assert_called_once()
-                mock_ui_cls.return_value.run.assert_called_once()
+        ), patch("interactive_ui.InteractiveUI") as mock_ui_cls:
+            mock_ui_cls.return_value.run = Mock()
+            with patch("builtins.print"):
+                main()
+            mock_ui_cls.assert_called_once()
+            mock_ui_cls.return_value.run.assert_called_once()
 
     def test_main_search(self):
         """Test main function with --search"""
@@ -385,13 +374,12 @@ class TestClaudeConversationExtractorComprehensive(unittest.TestCase):
         with patch(
             "sys.argv",
             ["extract_claude_logs.py", "--output", self.temp_dir],
-        ):
-            with patch.object(
-                ClaudeConversationExtractor, "list_recent_sessions", return_value=[]
-            ) as mock_list:
-                with patch("builtins.print"):
-                    main()
-                mock_list.assert_called_once()
+        ), patch.object(
+            ClaudeConversationExtractor, "list_recent_sessions", return_value=[]
+        ) as mock_list:
+            with patch("builtins.print"):
+                main()
+            mock_list.assert_called_once()
 
     def test_extract_conversation_with_errors(self):
         """Test extract_conversation with file read errors"""

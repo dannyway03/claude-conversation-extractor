@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Tests for Claude Conversation Extractor"""
 
 import json
@@ -12,7 +13,7 @@ import pytest
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from extract_claude_logs import ClaudeConversationExtractor, encode_project_path  # noqa: E402
+from extract_claude_logs import ClaudeConversationExtractor, encode_project_path
 
 
 class TestClaudeConversationExtractor(unittest.TestCase):
@@ -118,8 +119,7 @@ class TestClaudeConversationExtractor(unittest.TestCase):
         ]
 
         with open(jsonl_file, "w") as f:
-            for entry in entries:
-                f.write(json.dumps(entry) + "\n")
+            f.writelines(json.dumps(entry) + "\n" for entry in entries)
 
         conversation = self.extractor.extract_conversation(jsonl_file)
 

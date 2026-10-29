@@ -15,9 +15,14 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from realtime_search import (KeyboardHandler, RealTimeSearch, SearchState,  # noqa: E402
-                             TerminalDisplay, create_smart_searcher)
-from search_conversations import ConversationSearcher, SearchResult  # noqa: E402
+from realtime_search import (
+    KeyboardHandler,
+    RealTimeSearch,
+    SearchState,
+    TerminalDisplay,
+    create_smart_searcher,
+)
+from search_conversations import ConversationSearcher, SearchResult
 
 
 class TestSearchResult(unittest.TestCase):
@@ -90,8 +95,7 @@ class TestConversationSearcher(unittest.TestCase):
         ]
 
         with open(self.test_file, "w") as f:
-            for conv in self.test_conversations:
-                f.write(json.dumps(conv) + "\n")
+            f.writelines(json.dumps(conv) + "\n" for conv in self.test_conversations)
 
         self.searcher = ConversationSearcher()
 
@@ -455,8 +459,7 @@ class TestIntegration(unittest.TestCase):
             ]
 
             with open(chat_file, "w") as f:
-                for conv in conversations:
-                    f.write(json.dumps(conv) + "\n")
+                f.writelines(json.dumps(conv) + "\n" for conv in conversations)
 
     def tearDown(self):
         """Clean up test environment"""

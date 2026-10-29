@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from realtime_search import RealTimeSearch, TerminalDisplay  # noqa: E402
+from realtime_search import RealTimeSearch, TerminalDisplay
 
 
 class MockKeyboardHandler:

@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Interactive terminal UI for Claude Conversation Extractor"""
 
+from __future__ import annotations
+
+import logging
 import os
 import platform
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 # Handle both package and direct execution imports
 try:
@@ -24,13 +28,17 @@ except ImportError:
 class InteractiveUI:
     """Interactive terminal UI for easier conversation extraction"""
 
-    def __init__(self, output_dir: Optional[str] = None, project_filter: Optional[str] = None,
-             claude_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        output_dir: str | None = None,
+        project_filter: str | None = None,
+        claude_dir: Path | None = None,
+    ):
         self.output_dir = output_dir
         self.project_filter = project_filter
         self.extractor = ClaudeConversationExtractor(output_dir, claude_dir)
         self.searcher = ConversationSearcher()
-        self.sessions: List[Path] = []
+        self.sessions: list[Path] = []
         self.terminal_width = shutil.get_terminal_size().columns
 
     def clear_screen(self):
@@ -68,7 +76,7 @@ class InteractiveUI:
         padding = (self.terminal_width - len(text) - 2) // 2
         print(f"{char * padding} {text} {char * padding}")
 
-    def get_folder_selection(self) -> Optional[Path]:
+    def get_folder_selection(self) -> Path | None:
         """Simple folder selection dialog"""
         self.clear_screen()
         self.print_banner()
@@ -104,7 +112,7 @@ class InteractiveUI:
             else:
                 print("❌ Invalid choice. Please try again.")
 
-    def show_sessions_menu(self) -> List[int]:
+    def show_sessions_menu(self) -> list[int]:
         """Display sessions and let user select which to extract"""
         self.clear_screen()
         self.print_banner()
@@ -178,7 +186,7 @@ class InteractiveUI:
 
         print(f"\r[{bar}] {current}/{total} {message}", end="", flush=True)
 
-    def search_conversations(self) -> List[int]:
+    def search_conversations(self) -> list[int]:
         """Launch real-time search interface"""
         # Enhance searcher with smart search
         smart_searcher = create_smart_searcher(self.searcher)
@@ -190,23 +198,25 @@ class InteractiveUI:
         if selected_file:
             # View the selected conversation
             self.extractor.display_conversation(Path(selected_file))
-            
+
             # Ask if user wants to extract it
-            extract_choice = input("\n📤 Extract this conversation? (y/N): ").strip().lower()
-            if extract_choice == 'y':
+            extract_choice = (
+                input("\n📤 Extract this conversation? (y/N): ").strip().lower()
+            )
+            if extract_choice == "y":
                 try:
                     index = self.sessions.index(Path(selected_file))
                     return [index]
                 except ValueError:
                     print("\n❌ Error: Selected file not found in sessions list")
                     input("\nPress Enter to continue...")
-            
+
             # Return empty to go back to menu
             return []
 
         return []
 
-    def extract_conversations(self, indices: List[int], output_dir: Path) -> int:
+    def extract_conversations(self, indices: list[int], output_dir: Path) -> int:
         """Extract selected conversations with progress display"""
         print(f"\n📤 Extracting {len(indices)} conversations...\n")
 
@@ -229,11 +239,11 @@ class InteractiveUI:
             if platform.system() == "Windows":
                 os.startfile(str(path))
             elif platform.system() == "Darwin":  # macOS
-                subprocess.run(["open", str(path)])
+                subprocess.run(["open", str(path)], check=False)
             else:  # Linux
-                subprocess.run(["xdg-open", str(path)])
-        except Exception:
-            pass  # Silently fail if we can't open the folder
+                subprocess.run(["xdg-open", str(path)], check=False)
+        except (OSError, subprocess.SubprocessError) as e:
+            logger.warning(f"Failed to open folder {path}: {e}")
 
     def run(self):
         """Main interactive UI flow"""
@@ -271,7 +281,7 @@ class InteractiveUI:
 
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as e:
             print(f"\n❌ Error: {e}")
             input("\nPress Enter to exit...")
 

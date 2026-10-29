@@ -1,17 +1,21 @@
-#!/usr/bin/env python3
 """
 Fixed real-time search interface for Claude Conversation Extractor.
 Properly handles arrow keys without printing escape sequences.
 """
 
+from __future__ import annotations
+
+import logging
 import os
+import re
 import sys
 import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 # Platform-specific imports for keyboard handling
 if sys.platform == "win32":
@@ -28,7 +32,7 @@ class SearchState:
 
     query: str = ""
     cursor_pos: int = 0
-    results: List = None
+    results: list | None = None
     selected_index: int = 0
     last_update: float = 0
     is_searching: bool = False
@@ -58,7 +62,7 @@ class KeyboardHandler:
         if sys.platform != "win32" and self.old_settings:
             termios.tcsetattr(self.stdin_fd, termios.TCSADRAIN, self.old_settings)
 
-    def get_key(self, timeout: float = 0.1) -> Optional[str]:
+    def get_key(self, timeout: float = 0.1) -> str | None:
         """Get a single keypress with timeout - FIXED version"""
         if sys.platform == "win32":
             # Windows implementation
@@ -95,27 +99,27 @@ class KeyboardHandler:
             if select.select([sys.stdin], [], [], timeout)[0]:
                 # Read one character
                 char = sys.stdin.read(1)
-                
+
                 # Check for escape sequences
-                if char == '\x1b':  # ESC character
+                if char == "\x1b":  # ESC character
                     # Check if there are more characters (arrow key sequence)
                     if select.select([sys.stdin], [], [], 0.0)[0]:
                         # Read the rest of the escape sequence
                         seq = []
                         seq.append(sys.stdin.read(1))  # Should be '['
-                        
+
                         # Read the next character
                         if select.select([sys.stdin], [], [], 0.0)[0]:
                             seq.append(sys.stdin.read(1))
-                            
+
                             # Check for arrow keys
-                            if seq == ['[', 'A']:
+                            if seq == ["[", "A"]:
                                 return "UP"
-                            elif seq == ['[', 'B']:
+                            elif seq == ["[", "B"]:
                                 return "DOWN"
-                            elif seq == ['[', 'C']:
+                            elif seq == ["[", "C"]:
                                 return "RIGHT"
-                            elif seq == ['[', 'D']:
+                            elif seq == ["[", "D"]:
                                 return "LEFT"
                             else:
                                 # Unknown escape sequence - consume any remaining chars
@@ -126,12 +130,12 @@ class KeyboardHandler:
                     else:
                         # Just ESC by itself
                         return "ESC"
-                        
-                elif char == '\r' or char == '\n':
+
+                elif char == "\r" or char == "\n":
                     return "ENTER"
-                elif char == '\x7f' or char == '\x08':
+                elif char == "\x7f" or char == "\x08":
                     return "BACKSPACE"
-                elif char == '\x03':  # Ctrl+C
+                elif char == "\x03":  # Ctrl+C
                     raise KeyboardInterrupt
                 elif ord(char) >= 32 and ord(char) < 127:  # Printable characters
                     return char
@@ -178,7 +182,7 @@ class TerminalDisplay:
         print("Type to search • ↑↓ to select • Enter to open • ESC to exit")
         print("─" * 60)
 
-    def draw_results(self, results: List, selected_index: int, query: str):
+    def draw_results(self, results: list, selected_index: int, query: str):
         """Draw search results with highlighting"""
         # Clear previous results
         for i in range(self.last_result_count + 1):
@@ -213,7 +217,7 @@ class TerminalDisplay:
                     idx = preview.lower().find(query.lower())
                     preview = (
                         preview[:idx]
-                        + f"\033[93m{preview[idx:idx + len(query)]}\033[0m"
+                        + f"\033[93m{preview[idx : idx + len(query)]}\033[0m"
                         + preview[idx + len(query) :]
                     )
 
@@ -296,7 +300,7 @@ class RealTimeSearch:
             with self.search_lock:
                 self.state.results = results
                 self.state.selected_index = 0
-        except Exception:
+        except (OSError, ValueError, RuntimeError, KeyError):
             # Handle search errors gracefully
             with self.search_lock:
                 self.state.results = []
@@ -313,11 +317,11 @@ class RealTimeSearch:
         # Thread cleanup
         self.stop_event.clear()
 
-    def handle_input(self, key: str) -> Optional[str]:
+    def handle_input(self, key: str) -> str | None:
         """Handle keyboard input and return action if needed"""
         if not key:
             return None
-            
+
         if key == "ESC":
             return "exit"
 
@@ -359,7 +363,9 @@ class RealTimeSearch:
                 self.trigger_search()
                 return "redraw"
 
-        elif key and len(key) == 1 and ord(key) >= 32 and ord(key) < 127:  # Printable character
+        elif (
+            key and len(key) == 1 and ord(key) >= 32 and ord(key) < 127
+        ):  # Printable character
             self.state.query = (
                 self.state.query[: self.state.cursor_pos]
                 + key
@@ -379,7 +385,7 @@ class RealTimeSearch:
             # Clear cache for partial matches
             keys_to_remove = [
                 k
-                for k in self.results_cache.keys()
+                for k in self.results_cache
                 if not k.startswith(self.state.query)
             ]
             for k in keys_to_remove:
@@ -391,7 +397,7 @@ class RealTimeSearch:
             self.stop_event.set()
             self.search_thread.join(timeout=0.5)
 
-    def run(self) -> Optional[Path]:
+    def run(self) -> Path | None:
         """Run the real-time search interface"""
         # Start search worker thread
         self.search_thread = threading.Thread(target=self.search_worker, daemon=True)
@@ -408,14 +414,12 @@ class RealTimeSearch:
                     self.state.selected_index,
                     self.state.query,
                 )
-                self.display.draw_search_box(
-                    self.state.query, self.state.cursor_pos
-                )
-                
+                self.display.draw_search_box(self.state.query, self.state.cursor_pos)
+
                 while True:
                     # Get keyboard input
                     key = keyboard.get_key(timeout=0.1)
-                    
+
                     if key:
                         action = self.handle_input(key)
 
@@ -474,8 +478,9 @@ def create_smart_searcher(searcher):
                 for r in regex_results:
                     if r.file_path not in existing_paths:
                         results.append(r)
-            except Exception:
-                pass  # Invalid regex, skip
+            except (re.error, ValueError):
+                logger.debug("Invalid regex pattern, skipping regex search")
+                # Invalid regex, skip
 
         # 3. Smart search for partial matches
         smart_results = original_search(query, mode="smart", **kwargs)
@@ -492,8 +497,9 @@ def create_smart_searcher(searcher):
                 for r in semantic_results:
                     if r.file_path not in existing_paths:
                         results.append(r)
-            except Exception:
-                pass  # Semantic search failed
+            except (OSError, ValueError, RuntimeError):
+                logger.debug("Semantic search failed, using other search modes")
+                # Semantic search failed
 
         # Sort by relevance (timestamp for now, could be improved)
         try:
@@ -506,8 +512,9 @@ def create_smart_searcher(searcher):
                 results.sort(
                     key=lambda x: getattr(x, "relevance_score", 0), reverse=True
                 )
-            except Exception:
-                pass  # Keep original order if sorting fails
+            except (AttributeError, TypeError, ValueError):
+                logger.debug("Sorting by relevance failed, keeping original order")
+                # Keep original order if sorting fails
 
         # Limit results
         max_results = kwargs.get("max_results", 20)
@@ -522,16 +529,16 @@ def main():
     """Main entry point for running real-time search directly."""
     from extract_claude_logs import ClaudeConversationExtractor
     from search_conversations import ConversationSearcher
-    
+
     # Initialize components
     extractor = ClaudeConversationExtractor()
     searcher = ConversationSearcher()
     smart_searcher = create_smart_searcher(searcher)
-    
+
     # Create and run real-time search
     rts = RealTimeSearch(smart_searcher, extractor)
     selected_file = rts.run()
-    
+
     if selected_file:
         print(f"\n✅ Selected: {selected_file}")
         # Could optionally extract here

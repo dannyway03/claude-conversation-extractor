@@ -15,8 +15,12 @@ from unittest.mock import MagicMock, Mock, patch
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports after sys.path modification
-from realtime_search import (KeyboardHandler, RealTimeSearch,  # noqa: E402
-                             TerminalDisplay, create_smart_searcher)
+from realtime_search import (
+    KeyboardHandler,
+    RealTimeSearch,
+    TerminalDisplay,
+    create_smart_searcher,
+)
 
 
 class TestKeyboardHandlerCoverage(unittest.TestCase):
@@ -153,7 +157,6 @@ class TestKeyboardHandlerCoverage(unittest.TestCase):
     @patch("sys.platform", "linux")
     def test_unix_keyboard_special_sequences(self):
         """Test Unix escape sequences"""
-        pass
 
     @patch("sys.platform", "linux")
     def test_unix_keyboard_ctrl_c(self):
@@ -197,7 +200,6 @@ class TestTerminalDisplayCoverage(unittest.TestCase):
     @patch("builtins.print")
     def test_cursor_operations(self, mock_print):
         """Test cursor movement operations"""
-        pass
 
     @patch("builtins.print")
     def test_draw_results_with_query_no_match(self, mock_print):
@@ -281,7 +283,7 @@ class TestSmartSearcherCoverage(unittest.TestCase):
         # Make semantic search fail
         def search_side_effect(query, mode=None, **kwargs):
             if mode == "semantic":
-                raise Exception("Semantic search failed")
+                raise RuntimeError("Semantic search failed")
             return []
 
         mock_searcher.search.side_effect = search_side_effect
@@ -315,7 +317,7 @@ class TestSmartSearcherCoverage(unittest.TestCase):
 
         def search_side_effect(query, mode=None, **kwargs):
             if mode == "regex":
-                raise Exception("Invalid regex")
+                raise ValueError("Invalid regex")
             return [Mock(file_path=Path(f"/test/{mode}.txt"))]
 
         mock_searcher.search.side_effect = search_side_effect

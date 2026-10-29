@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Search functionality for Claude Conversation Extractor
 
@@ -11,13 +10,16 @@ This module provides powerful search capabilities including:
 
 Adapted from CAKE's conversation parser for Claude conversation search.
 """
+from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+
+logger = logging.getLogger(__name__)
 
 # Optional NLP imports for semantic search
 try:
@@ -39,7 +41,7 @@ class SearchResult:
     matched_content: str
     context: str  # Surrounding text for context
     speaker: str  # 'human' or 'assistant'
-    timestamp: Optional[datetime] = None
+    timestamp: datetime | None = None
     relevance_score: float = 0.0
     line_number: int = 0
 
@@ -62,7 +64,7 @@ class ConversationSearcher:
     Provides multiple search modes and intelligent ranking.
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         """
         Initialize the searcher.
 
@@ -79,7 +81,7 @@ class ConversationSearcher:
                 self.nlp = spacy.load("en_core_web_sm")
                 # Disable unnecessary components for speed
                 self.nlp.select_pipes(disable=["ner", "lemmatizer"])
-            except Exception:
+            except (OSError, ImportError):
                 print("Warning: spaCy model not found. Using basic search.")
 
         # Common words to ignore in relevance scoring
@@ -128,14 +130,14 @@ class ConversationSearcher:
     def search(
         self,
         query: str,
-        search_dir: Optional[Path] = None,
+        search_dir: Path | None = None,
         mode: str = "smart",
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
-        speaker_filter: Optional[str] = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        speaker_filter: str | None = None,
         max_results: int = 20,
         case_sensitive: bool = False,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """
         Search conversations with various filters.
 
@@ -202,10 +204,10 @@ class ConversationSearcher:
 
     def _filter_files_by_date(
         self,
-        files: List[Path],
-        date_from: Optional[datetime],
-        date_to: Optional[datetime],
-    ) -> List[Path]:
+        files: list[Path],
+        date_from: datetime | None,
+        date_to: datetime | None,
+    ) -> list[Path]:
         """Filter files by modification date."""
         filtered = []
 
@@ -225,9 +227,9 @@ class ConversationSearcher:
         self,
         jsonl_file: Path,
         query: str,
-        speaker_filter: Optional[str],
+        speaker_filter: str | None,
         case_sensitive: bool,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """
         Smart search that combines multiple techniques.
 
@@ -304,7 +306,7 @@ class ConversationSearcher:
                     except json.JSONDecodeError:
                         continue
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Error searching {jsonl_file}: {e}")
 
         return results
@@ -313,9 +315,9 @@ class ConversationSearcher:
         self,
         jsonl_file: Path,
         query: str,
-        speaker_filter: Optional[str],
+        speaker_filter: str | None,
         case_sensitive: bool,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """Exact string matching search."""
         results = []
         conversation_id = jsonl_file.stem
@@ -381,7 +383,7 @@ class ConversationSearcher:
                     except json.JSONDecodeError:
                         continue
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Error searching {jsonl_file}: {e}")
 
         return results
@@ -390,9 +392,9 @@ class ConversationSearcher:
         self,
         jsonl_file: Path,
         pattern: str,
-        speaker_filter: Optional[str],
+        speaker_filter: str | None,
         case_sensitive: bool,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """Regex pattern matching search."""
         results = []
         conversation_id = jsonl_file.stem
@@ -463,14 +465,14 @@ class ConversationSearcher:
                     except json.JSONDecodeError:
                         continue
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Error searching {jsonl_file}: {e}")
 
         return results
 
     def _search_semantic(
-        self, jsonl_file: Path, query: str, speaker_filter: Optional[str]
-    ) -> List[SearchResult]:
+        self, jsonl_file: Path, query: str, speaker_filter: str | None
+    ) -> list[SearchResult]:
         """
         Semantic search using spaCy NLP.
 
@@ -545,12 +547,12 @@ class ConversationSearcher:
                     except json.JSONDecodeError:
                         continue
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Error searching {jsonl_file}: {e}")
 
         return results
 
-    def _extract_content(self, entry: Dict) -> str:
+    def _extract_content(self, entry: dict) -> str:
         """Extract text content from a JSONL entry."""
         # Handle test format (type: user/assistant, content: string)
         if entry.get("type") in ["user", "assistant"] and "content" in entry:
@@ -580,7 +582,7 @@ class ConversationSearcher:
         return ""
 
     def _calculate_relevance(
-        self, content: str, query: str, query_tokens: Set[str], case_sensitive: bool
+        self, content: str, query: str, query_tokens: set[str], case_sensitive: bool
     ) -> float:
         """
         Calculate relevance score for content against query.
@@ -637,14 +639,16 @@ class ConversationSearcher:
         similar_count = 0
         for query_token in query_tokens:
             for content_token in content_doc:
-                if content_token.is_alpha and not content_token.is_stop:
-                    # Check if tokens are similar (same lemma or high similarity)
-                    if (
+                if (
+                    content_token.is_alpha
+                    and not content_token.is_stop
+                    and (
                         query_token.lemma_ == content_token.lemma_
                         or query_token.text == content_token.text
-                    ):
-                        similar_count += 1
-                        break
+                    )
+                ):
+                    similar_count += 1
+                    break
 
         # Calculate similarity score
         if query_tokens:
@@ -697,8 +701,8 @@ class ConversationSearcher:
         return context
 
     def search_by_date_range(
-        self, date_from: datetime, date_to: datetime, search_dir: Optional[Path] = None
-    ) -> List[Path]:
+        self, date_from: datetime, date_to: datetime, search_dir: Path | None = None
+    ) -> list[Path]:
         """Find all conversation files within a date range."""
         if search_dir is None:
             search_dir = Path.home() / ".claude" / "projects"
@@ -708,7 +712,7 @@ class ConversationSearcher:
 
     def get_conversation_topics(
         self, jsonl_file: Path, max_topics: int = 5
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Extract main topics from a conversation.
 
@@ -729,7 +733,7 @@ class ConversationSearcher:
                             all_content.append(content)
                     except json.JSONDecodeError:
                         continue
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             return []
 
         if not all_content:
@@ -800,7 +804,8 @@ def create_search_index(search_dir: Path, output_file: Path) -> None:
 
                     except json.JSONDecodeError:
                         continue
-        except Exception:
+        except (OSError, json.JSONDecodeError):
+            logger.debug(f"Failed to read {jsonl_file}, skipping")
             continue
 
         # Convert set to list for JSON serialization
