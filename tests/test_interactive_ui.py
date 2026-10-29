@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 # Add parent directory to path before local imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -17,26 +17,48 @@ sys.path.append(str(Path(__file__).parent.parent))
 from interactive_ui import InteractiveUI  # noqa: E402
 
 
+def _make_mock_session(path_str):
+    """Create a MagicMock path that supports .stat() and .parent.name"""
+    p = MagicMock(spec=Path)
+    p.__str__ = lambda self: path_str
+    p.__fspath__ = lambda self: path_str
+    p.__eq__ = lambda self, other: str(other) == path_str
+    p.__hash__ = lambda self: hash(path_str)
+    real_path = Path(path_str)
+    p.parent = MagicMock()
+    p.parent.name = real_path.parent.name
+    stat_result = MagicMock()
+    stat_result.st_mtime = 1700000000.0
+    stat_result.st_size = 1024
+    p.stat.return_value = stat_result
+    return p
+
+
 class TestInteractiveUI(unittest.TestCase):
     """Test InteractiveUI functionality"""
 
     def setUp(self):
         """Set up test UI"""
-        self.ui = InteractiveUI()
+        with patch("extract_claude_logs.ClaudeConversationExtractor.__init__", return_value=None):
+            self.ui = InteractiveUI()
+        # Ensure extractor has needed attributes
+        self.ui.extractor = Mock()
+        self.ui.extractor.output_dir = None
 
-        # Create mock sessions
+        # Create mock sessions as MagicMock paths with stat support
         self.mock_sessions = [
-            Path("/test/.claude/projects/project1/chat_1.jsonl"),
-            Path("/test/.claude/projects/project2/chat_2.jsonl"),
-            Path("/test/.claude/projects/project3/chat_3.jsonl"),
+            _make_mock_session("/test/.claude/projects/project1/chat_1.jsonl"),
+            _make_mock_session("/test/.claude/projects/project2/chat_2.jsonl"),
+            _make_mock_session("/test/.claude/projects/project3/chat_3.jsonl"),
         ]
-        # Store original sessions to restore later
-        self.original_sessions = self.ui.sessions
         self.ui.sessions = self.mock_sessions
+        # Wire find_sessions so show_sessions_menu always gets a list by default
+        self.ui.extractor.find_sessions = Mock(return_value=self.mock_sessions)
 
     @patch("interactive_ui.RealTimeSearch")
     @patch("interactive_ui.create_smart_searcher")
-    def test_search_conversations_with_result(self, mock_create_smart, mock_rts_class):
+    @patch("builtins.input", return_value="y")
+    def test_search_conversations_with_result(self, mock_input, mock_create_smart, mock_rts_class):
         """Test search conversations when user selects a result"""
         # Mock the smart searcher
         mock_smart_searcher = Mock()
@@ -47,7 +69,18 @@ class TestInteractiveUI(unittest.TestCase):
         mock_rts_class.return_value = mock_rts
 
         # Mock that user selected the second file
-        mock_rts.run.return_value = Path("/test/.claude/projects/project2/chat_2.jsonl")
+        selected_path = Path("/test/.claude/projects/project2/chat_2.jsonl")
+        mock_rts.run.return_value = selected_path
+
+        # Make extractor.display_conversation a no-op
+        self.ui.extractor.display_conversation = Mock()
+
+        # Use real Path objects so index() works
+        self.ui.sessions = [
+            Path("/test/.claude/projects/project1/chat_1.jsonl"),
+            Path("/test/.claude/projects/project2/chat_2.jsonl"),
+            Path("/test/.claude/projects/project3/chat_3.jsonl"),
+        ]
 
         # Run search
         indices = self.ui.search_conversations()
@@ -85,7 +118,7 @@ class TestInteractiveUI(unittest.TestCase):
 
     @patch("interactive_ui.RealTimeSearch")
     @patch("interactive_ui.create_smart_searcher")
-    @patch("builtins.input")
+    @patch("builtins.input", return_value="y")
     @patch("builtins.print")
     def test_search_conversations_file_not_found(
         self, mock_print, mock_input, mock_create_smart, mock_rts_class
@@ -101,6 +134,16 @@ class TestInteractiveUI(unittest.TestCase):
 
         # Mock that user selected a file not in sessions list
         mock_rts.run.return_value = Path("/test/.claude/projects/unknown/chat_x.jsonl")
+
+        # Make extractor.display_conversation a no-op
+        self.ui.extractor.display_conversation = Mock()
+
+        # Use real Path objects so index() raises ValueError for unknown path
+        self.ui.sessions = [
+            Path("/test/.claude/projects/project1/chat_1.jsonl"),
+            Path("/test/.claude/projects/project2/chat_2.jsonl"),
+            Path("/test/.claude/projects/project3/chat_3.jsonl"),
+        ]
 
         # Run search
         indices = self.ui.search_conversations()
@@ -297,8 +340,14 @@ class TestMenuDisplay(unittest.TestCase):
     @patch("builtins.print")
     def test_menu_shows_realtime_search(self, mock_print):
         """Test that menu shows real-time search option"""
-        ui = InteractiveUI()
-        ui.sessions = [Path("/test/chat.jsonl")]
+        with patch("extract_claude_logs.ClaudeConversationExtractor.__init__", return_value=None):
+            ui = InteractiveUI()
+        ui.extractor = Mock()
+
+        # Provide mock sessions with stat support so show_sessions_menu doesn't crash
+        mock_sessions = [_make_mock_session("/test/chat.jsonl")]
+        ui.extractor.find_sessions = Mock(return_value=mock_sessions)
+        ui.sessions = mock_sessions
 
         with patch("builtins.input", return_value="Q"):
             ui.show_sessions_menu()
@@ -306,7 +355,8 @@ class TestMenuDisplay(unittest.TestCase):
         # Check that real-time search is mentioned
         all_prints = " ".join(str(call) for call in mock_print.call_args_list)
         self.assertIn("real-time search", all_prints.lower())
-        self.assertIn("F. FIND", all_prints)
+        # Menu text is "F. SEARCH conversations (real-time search)"
+        self.assertIn("F. SEARCH", all_prints)
 
 
 if __name__ == "__main__":

@@ -150,17 +150,62 @@ claude-extract --all
 # Save Claude logs to custom location
 claude-extract --output ~/my-claude-backups
 
+# Use a non-default Claude projects directory
+claude-extract --claude-dir /custom/path --all
+
 # Filter to a single Claude Code project (e.g. for an end-of-session hook)
 claude-extract --project .                  # cwd's project, list sessions
 claude-extract --project . --recent 1       # most recent session in cwd
 claude-extract --project /path/to/repo --all # all sessions from another path
 ```
 
-The `--project` flag scopes every session-finding operation (`--list`,
-`--recent`, `--all`, `--extract`) to one Claude Code project. Pass any
-path you'd run Claude Code from. Useful for end-of-session hooks: run
-`claude-extract --project . --recent 1` to export the just-finished
-session and nothing else.
+The `--project` flag scopes all operations to one Claude Code project.
+Pass any path you'd run Claude Code from (`.` for the current directory).
+
+| Command | What it does |
+|---|---|
+| `--project .` | List sessions for the current directory's project |
+| `--project . --list` | Same as above (explicit) |
+| `--project . --list --limit N` | List up to N sessions from that project |
+| `--project . --extract 1` | Extract session #1 within that project |
+| `--project . --extract 1,3,5` | Extract sessions 1, 3, 5 from that project |
+| `--project . --recent N` | Extract N most recent sessions from that project |
+| `--project . --all` | Extract all sessions from that project |
+| `--project . --search "foo"` | Search for "foo" within that project only |
+| `--project . --search-regex "pat"` | Regex search within that project only |
+| `--project . --interactive` | Open interactive UI scoped to that project |
+| `--project /path/to/repo --all` | Extract all sessions from another repo |
+
+> **Note:** Session numbers in `--extract` are relative to the filtered list, not the global list — `--project . --extract 1` is the most recent session of that project specifically.
+
+Useful for end-of-session hooks: `claude-extract --project . --recent 1` exports the just-finished session and nothing else.
+
+### 🗂️ Custom Claude Directory (`--claude-dir`)
+
+If your Claude Code stores conversations somewhere other than `~/.claude/projects` — for example on a different drive, a shared mount, or a test environment — use `--claude-dir`:
+
+```bash
+# Point to a non-default Claude projects directory
+claude-extract --claude-dir /mnt/external/.claude/projects --all
+
+# Combine with --project scoping
+claude-extract --claude-dir /custom/path --project . --recent 5
+
+# Open interactive UI against a custom directory
+claude-extract --claude-dir /custom/path --interactive
+```
+
+You can also set it permanently via environment variables (no flag needed each time):
+
+```bash
+# In your shell profile (~/.bashrc, ~/.zshrc, etc.)
+export CLAUDE_DIR=/custom/path/to/claude/projects
+
+# Or the alternative name
+export PROJECT_DIR=/custom/path/to/claude/projects
+```
+
+Priority order: `--claude-dir` flag > `CLAUDE_DIR` env var > `PROJECT_DIR` env var > default `~/.claude/projects`.
 
 ### 📄 Export Formats - NEW in v1.1.1!
 
@@ -356,6 +401,11 @@ See [INSTALL.md](docs/user/INSTALL.md) for:
 - [x] Export to HTML with beautiful formatting
 - [x] Detailed transcript mode with tool use/MCP responses
 - [x] Direct search command (`claude-search`)
+
+### ✅ Completed in v1.1.2+
+- [x] `--project` flag to scope all operations to one Claude Code project
+- [x] `--claude-dir` flag and `CLAUDE_DIR`/`PROJECT_DIR` env vars for custom storage locations
+- [x] Subagent session export (sessions nested under `subagents/` directories)
 
 ### 🚧 Planned Features
 - [ ] Export to PDF format

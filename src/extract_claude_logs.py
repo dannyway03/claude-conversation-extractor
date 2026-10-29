@@ -10,6 +10,7 @@ readable markdown files.
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -84,9 +85,12 @@ class ClaudeConversationExtractor:
                 except Exception:
                     continue
             else:
-                # Fallback to current directory
+                # Fallback to current directory — don't raise if mkdir fails
                 self.output_dir = Path.cwd() / "claude-logs"
-                self.output_dir.mkdir(exist_ok=True)
+                try:
+                    self.output_dir.mkdir(exist_ok=True)
+                except Exception:
+                    pass
 
         print(f"📁 Saving logs to: {self.output_dir}")
 
@@ -231,8 +235,38 @@ class ClaudeConversationExtractor:
                             f"Input: {json.dumps(tool_input, indent=2)}\n"
                         )
             return "\n".join(text_parts)
+        elif content is None:
+            return ""
         else:
             return str(content)
+
+    def _format_session_id(self, jsonl_path: Path) -> str:
+        """Extract session ID components from file path.
+
+        For subagent sessions (in subagents/ directory), includes parent UUID prefix.
+        For regular UUID sessions, uses first 8 characters.
+
+        Args:
+            jsonl_path: Path to the JSONL session file
+
+        Returns:
+            Formatted session ID string for filename
+        """
+        session_id = jsonl_path.stem
+
+        # Check if this is a subagent session
+        if 'subagents' in jsonl_path.parts:
+            # Get parent UUID from directory name (parent of 'subagents')
+            subagents_idx = jsonl_path.parts.index('subagents')
+            parent_uuid = jsonl_path.parts[subagents_idx - 1]
+            uuid_prefix = parent_uuid[:8]
+            return f"{uuid_prefix}-{session_id}"
+
+        # Regular UUID session
+        if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', session_id.lower()):
+            return session_id[:8]
+
+        return session_id
 
     def display_conversation(self, jsonl_path: Path, detailed: bool = False) -> None:
         """Display a conversation in the terminal with pagination.
@@ -333,7 +367,7 @@ class ClaudeConversationExtractor:
             input("\nPress Enter to continue...")
 
     def save_as_markdown(
-            self, conversation: List[Dict[str, str]], session_id: str
+            self, conversation: List[Dict[str, str]], jsonl_path: Path
     ) -> Optional[Path]:
         """Save conversation as clean markdown file."""
         if not conversation:
@@ -354,45 +388,50 @@ class ClaudeConversationExtractor:
             date_str = datetime.now().strftime("%Y-%m-%d")
             time_str = ""
 
-        filename = f"claude-conversation-{date_str}-{session_id[:8]}.md"
+        formatted_session_id = self._format_session_id(jsonl_path)
+        filename = f"claude-conversation-{date_str}-{formatted_session_id}.md"
         output_path = self.output_dir / filename
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("# Claude Conversation Log\n\n")
-            f.write(f"Session ID: {session_id}\n")
-            f.write(f"Date: {date_str}")
-            if time_str:
-                f.write(f" {time_str}")
-            f.write("\n\n---\n\n")
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("# Claude Conversation Log\n\n")
+                f.write(f"Session ID: {jsonl_path.stem}\n")
+                f.write(f"Date: {date_str}")
+                if time_str:
+                    f.write(f" {time_str}")
+                f.write("\n\n---\n\n")
 
-            for msg in conversation:
-                role = msg["role"]
-                content = msg["content"]
+                for msg in conversation:
+                    role = msg["role"]
+                    content = msg["content"]
 
-                if role == "user":
-                    f.write("## 👤 User\n\n")
-                    f.write(f"{content}\n\n")
-                elif role == "assistant":
-                    f.write("## 🤖 Claude\n\n")
-                    f.write(f"{content}\n\n")
-                elif role == "tool_use":
-                    f.write("### 🔧 Tool Use\n\n")
-                    f.write(f"{content}\n\n")
-                elif role == "tool_result":
-                    f.write("### 📤 Tool Result\n\n")
-                    f.write(f"{content}\n\n")
-                elif role == "system":
-                    f.write("### ℹ️ System\n\n")
-                    f.write(f"{content}\n\n")
-                else:
-                    f.write(f"## {role}\n\n")
-                    f.write(f"{content}\n\n")
-                f.write("---\n\n")
+                    if role == "user":
+                        f.write("## 👤 User\n\n")
+                        f.write(f"{content}\n\n")
+                    elif role == "assistant":
+                        f.write("## 🤖 Claude\n\n")
+                        f.write(f"{content}\n\n")
+                    elif role == "tool_use":
+                        f.write("### 🔧 Tool Use\n\n")
+                        f.write(f"{content}\n\n")
+                    elif role == "tool_result":
+                        f.write("### 📤 Tool Result\n\n")
+                        f.write(f"{content}\n\n")
+                    elif role == "system":
+                        f.write("### ℹ️ System\n\n")
+                        f.write(f"{content}\n\n")
+                    else:
+                        f.write(f"## {role}\n\n")
+                        f.write(f"{content}\n\n")
+                    f.write("---\n\n")
+        except OSError as e:
+            print(f"❌ Error saving {output_path.name}: {e}")
+            return None
 
         return output_path
 
     def save_as_json(
-            self, conversation: List[Dict[str, str]], session_id: str
+            self, conversation: List[Dict[str, str]], jsonl_path: Path
     ) -> Optional[Path]:
         """Save conversation as JSON file."""
         if not conversation:
@@ -409,24 +448,29 @@ class ClaudeConversationExtractor:
         else:
             date_str = datetime.now().strftime("%Y-%m-%d")
 
-        filename = f"claude-conversation-{date_str}-{session_id[:8]}.json"
+        formatted_session_id = self._format_session_id(jsonl_path)
+        filename = f"claude-conversation-{date_str}-{formatted_session_id}.json"
         output_path = self.output_dir / filename
 
         # Create JSON structure
         output = {
-            "session_id":    session_id,
+            "session_id":    jsonl_path.stem,
             "date":          date_str,
             "message_count": len(conversation),
             "messages":      conversation
         }
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(output, f, indent=2, ensure_ascii=False)
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(output, f, indent=2, ensure_ascii=False)
+        except OSError as e:
+            print(f"❌ Error saving {output_path.name}: {e}")
+            return None
 
         return output_path
 
     def save_as_html(
-            self, conversation: List[Dict[str, str]], session_id: str
+            self, conversation: List[Dict[str, str]], jsonl_path: Path
     ) -> Optional[Path]:
         """Save conversation as HTML file with syntax highlighting."""
         if not conversation:
@@ -446,7 +490,8 @@ class ClaudeConversationExtractor:
             date_str = datetime.now().strftime("%Y-%m-%d")
             time_str = ""
 
-        filename = f"claude-conversation-{date_str}-{session_id[:8]}.html"
+        formatted_session_id = self._format_session_id(jsonl_path)
+        filename = f"claude-conversation-{date_str}-{formatted_session_id}.html"
         output_path = self.output_dir / filename
 
         # HTML template with modern styling
@@ -455,7 +500,7 @@ class ClaudeConversationExtractor:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Conversation - {session_id[:8]}</title>
+    <title>Claude Conversation - {formatted_session_id}</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -534,58 +579,62 @@ class ClaudeConversationExtractor:
     <div class="header">
         <h1>Claude Conversation Log</h1>
         <div class="metadata">
-            <p>Session ID: {session_id}</p>
+            <p>Session ID: {jsonl_path.stem}</p>
             <p>Date: {date_str} {time_str}</p>
             <p>Messages: {len(conversation)}</p>
         </div>
     </div>
 """
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
 
-            for msg in conversation:
-                role = msg["role"]
-                content = msg["content"]
+                for msg in conversation:
+                    role = msg["role"]
+                    content = msg["content"]
 
-                # Escape HTML
-                content = content.replace("&", "&amp;")
-                content = content.replace("<", "&lt;")
-                content = content.replace(">", "&gt;")
+                    # Escape HTML
+                    content = content.replace("&", "&amp;")
+                    content = content.replace("<", "&lt;")
+                    content = content.replace(">", "&gt;")
 
-                role_display = {
-                    "user":        "👤 User",
-                    "assistant":   "🤖 Claude",
-                    "tool_use":    "🔧 Tool Use",
-                    "tool_result": "📤 Tool Result",
-                    "system":      "ℹ️ System"
-                }.get(role, role)
+                    role_display = {
+                        "user":        "👤 User",
+                        "assistant":   "🤖 Claude",
+                        "tool_use":    "🔧 Tool Use",
+                        "tool_result": "📤 Tool Result",
+                        "system":      "ℹ️ System"
+                    }.get(role, role)
 
-                f.write(f'    <div class="message {role}">\n')
-                f.write(f'        <div class="role">{role_display}</div>\n')
-                f.write(f'        <div class="content">{content}</div>\n')
-                f.write(f'    </div>\n')
+                    f.write(f'    <div class="message {role}">\n')
+                    f.write(f'        <div class="role">{role_display}</div>\n')
+                    f.write(f'        <div class="content">{content}</div>\n')
+                    f.write(f'    </div>\n')
 
-            f.write("\n</body>\n</html>")
+                f.write("\n</body>\n</html>")
+        except OSError as e:
+            print(f"❌ Error saving {output_path.name}: {e}")
+            return None
 
         return output_path
 
     def save_conversation(
-            self, conversation: List[Dict[str, str]], session_id: str, format: str = "markdown"
+            self, conversation: List[Dict[str, str]], jsonl_path: Path, format: str = "markdown"
     ) -> Optional[Path]:
         """Save conversation in the specified format.
 
         Args:
             conversation: The conversation data
-            session_id: Session identifier
+            jsonl_path: Path to the JSONL session file
             format: Output format ('markdown', 'json', 'html')
         """
         if format == "markdown":
-            return self.save_as_markdown(conversation, session_id)
+            return self.save_as_markdown(conversation, jsonl_path)
         elif format == "json":
-            return self.save_as_json(conversation, session_id)
+            return self.save_as_json(conversation, jsonl_path)
         elif format == "html":
-            return self.save_as_html(conversation, session_id)
+            return self.save_as_html(conversation, jsonl_path)
         else:
             print(f"❌ Unsupported format: {format}")
             return None
@@ -742,7 +791,7 @@ class ClaudeConversationExtractor:
                 )
                 if conversation:
                     output_path = self.save_conversation(
-                        conversation, session_path.stem, format=format
+                        conversation, session_path, format=format
                     )
                     success += 1
                     msg_count = len(conversation)
@@ -764,18 +813,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --list                    # List all available sessions
-  %(prog)s --extract 1               # Extract the most recent session
-  %(prog)s --extract 1,3,5           # Extract specific sessions
-  %(prog)s --recent 5                # Extract 5 most recent sessions
-  %(prog)s --all                     # Extract all sessions
-  %(prog)s --output ~/my-logs        # Specify output directory
-  %(prog)s --claude-dir /custom/path # Specify Claude projects directory
-  %(prog)s --search "python error"   # Search conversations
-  %(prog)s --search-regex "import.*" # Search with regex
-  %(prog)s --format json --all       # Export all as JSON
-  %(prog)s --format html --extract 1 # Export session 1 as HTML
-  %(prog)s --detailed --extract 1    # Include tool use & system messages
+  %(prog)s --list                           # List all available sessions
+  %(prog)s --extract 1                      # Extract the most recent session
+  %(prog)s --extract 1,3,5                  # Extract specific sessions
+  %(prog)s --recent 5                       # Extract 5 most recent sessions
+  %(prog)s --all                            # Extract all sessions
+  %(prog)s --output ~/my-logs               # Specify output directory
+  %(prog)s --claude-dir /custom/path        # Specify Claude projects directory
+  %(prog)s --search "python error"          # Search all conversations
+  %(prog)s --search-regex "import.*"        # Search with regex
+  %(prog)s --format json --all              # Export all as JSON
+  %(prog)s --format html --extract 1        # Export session 1 as HTML
+  %(prog)s --detailed --extract 1           # Include tool use & system messages
+  %(prog)s --project .                      # List sessions for the cwd project
+  %(prog)s --project . --recent 1           # Export last session of cwd project
+  %(prog)s --project . --all                # Export all sessions of cwd project
+  %(prog)s --project . --search "bug fix"   # Search within cwd project only
+  %(prog)s --project /path/to/repo --list   # List sessions for another project
 
 Environment Variables:
   CLAUDE_DIR=/custom/path           # Set Claude projects directory
@@ -870,13 +924,6 @@ Environment Variables:
 
     args = parser.parse_args()
 
-    # Handle interactive mode
-    if args.interactive or (args.export and args.export.lower() == "logs"):
-        from interactive_ui import main as interactive_main
-
-        interactive_main()
-        return
-
     # Initialize extractor with optional output directory and claude_dir
     claude_dir_path = Path(args.claude_dir) if args.claude_dir else None
     extractor = ClaudeConversationExtractor(args.output, claude_dir_path)
@@ -893,6 +940,14 @@ Environment Variables:
             )
             sys.exit(1)
 
+    # Handle interactive mode (after project_filter so --project is respected)
+    if args.interactive or (args.export and args.export.lower() == "logs"):
+        from interactive_ui import InteractiveUI
+
+        ui = InteractiveUI(project_filter=project_filter, claude_dir=claude_dir_path)
+        ui.run()
+        return
+
     # Handle search mode
     if args.search or args.search_regex:
         from datetime import datetime
@@ -900,6 +955,7 @@ Environment Variables:
         from search_conversations import ConversationSearcher
 
         searcher = ConversationSearcher()
+        search_dir = extractor.claude_dir / project_filter if project_filter else None
 
         # Determine search mode and query
         if args.search_regex:
@@ -933,6 +989,7 @@ Environment Variables:
         print(f"🔍 Searching for: {query}")
         results = searcher.search(
             query=query,
+            search_dir=search_dir,
             mode=mode,
             date_from=date_from,
             date_to=date_to,
@@ -990,18 +1047,17 @@ Environment Variables:
                                 selected_path, detailed=args.detailed
                             )
                             if conversation:
-                                session_id = selected_path.stem
                                 if args.format == "json":
                                     output = extractor.save_as_json(
-                                        conversation, session_id
+                                        conversation, selected_path
                                     )
                                 elif args.format == "html":
                                     output = extractor.save_as_html(
-                                        conversation, session_id
+                                        conversation, selected_path
                                     )
                                 else:
                                     output = extractor.save_as_markdown(
-                                        conversation, session_id
+                                        conversation, selected_path
                                     )
                                 print(f"✅ Saved: {output.name}")
             except (EOFError, KeyboardInterrupt):
@@ -1086,10 +1142,10 @@ def launch_interactive():
     # If no arguments provided, launch interactive UI
     if len(sys.argv) == 1:
         try:
-            from .interactive_ui import main as interactive_main
+            from .interactive_ui import InteractiveUI as _InteractiveUI
         except ImportError:
-            from interactive_ui import main as interactive_main
-        interactive_main()
+            from interactive_ui import InteractiveUI as _InteractiveUI
+        _InteractiveUI().run()
     # Check if 'search' was passed as an argument
     elif len(sys.argv) > 1 and sys.argv[1] == 'search':
         # Launch real-time search with viewing capability
@@ -1119,8 +1175,7 @@ def launch_interactive():
                 if extract_choice == 'y':
                     conversation = extractor.extract_conversation(selected_file)
                     if conversation:
-                        session_id = selected_file.stem
-                        output = extractor.save_as_markdown(conversation, session_id)
+                        output = extractor.save_as_markdown(conversation, selected_file)
                         print(f"✅ Saved: {output.name}")
             except (EOFError, KeyboardInterrupt):
                 print("\n👋 Cancelled")

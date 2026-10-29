@@ -24,9 +24,11 @@ except ImportError:
 class InteractiveUI:
     """Interactive terminal UI for easier conversation extraction"""
 
-    def __init__(self, output_dir: Optional[str] = None):
+    def __init__(self, output_dir: Optional[str] = None, project_filter: Optional[str] = None,
+             claude_dir: Optional[Path] = None):
         self.output_dir = output_dir
-        self.extractor = ClaudeConversationExtractor(output_dir)
+        self.project_filter = project_filter
+        self.extractor = ClaudeConversationExtractor(output_dir, claude_dir)
         self.searcher = ConversationSearcher()
         self.sessions: List[Path] = []
         self.terminal_width = shutil.get_terminal_size().columns
@@ -109,7 +111,7 @@ class InteractiveUI:
 
         # Get all sessions
         print("\n🔍 Finding your Claude conversations...")
-        self.sessions = self.extractor.find_sessions()
+        self.sessions = self.extractor.find_sessions(project_path=self.project_filter)
 
         if not self.sessions:
             print("\n❌ No Claude conversations found!")

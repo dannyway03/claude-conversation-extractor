@@ -21,7 +21,11 @@ class TestClaudeConversationExtractor(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.temp_dir = tempfile.mkdtemp()
-        self.extractor = ClaudeConversationExtractor(output_dir=self.temp_dir)
+        self.claude_dir = Path(self.temp_dir) / "claude" / "projects"
+        self.claude_dir.mkdir(parents=True)
+        self.extractor = ClaudeConversationExtractor(
+            output_dir=self.temp_dir, claude_dir=self.claude_dir
+        )
 
     def tearDown(self):
         """Clean up test fixtures"""
@@ -32,7 +36,7 @@ class TestClaudeConversationExtractor(unittest.TestCase):
     def test_initialization(self):
         """Test extractor initialization"""
         self.assertEqual(self.extractor.output_dir, Path(self.temp_dir))
-        self.assertTrue(self.extractor.claude_dir.name == "projects")
+        self.assertEqual(self.extractor.claude_dir, self.claude_dir)
 
     def test_extract_text_content_string(self):
         """Test extracting text from string content"""
@@ -58,7 +62,7 @@ class TestClaudeConversationExtractor(unittest.TestCase):
 
     def test_save_as_markdown_empty_conversation(self):
         """Test saving empty conversation returns None"""
-        result = self.extractor.save_as_markdown([], "test-session")
+        result = self.extractor.save_as_markdown([], Path(self.temp_dir) / "test-session.jsonl")
         self.assertIsNone(result)
 
     def test_save_as_markdown_with_conversation(self):
@@ -76,7 +80,7 @@ class TestClaudeConversationExtractor(unittest.TestCase):
             },
         ]
 
-        result = self.extractor.save_as_markdown(conversation, "test-session-id")
+        result = self.extractor.save_as_markdown(conversation, Path(self.temp_dir) / "test-session-id.jsonl")
 
         self.assertIsNotNone(result)
         self.assertTrue(result.exists())
