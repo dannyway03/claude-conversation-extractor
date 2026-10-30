@@ -1184,8 +1184,19 @@ Environment Variables:
         print(f"\n✅ Successfully extracted {success}/{total} sessions")
 
 
+_CUSTOM_VERSION_NOTE = """\
+claude-conversation-extractor [customized]
+  1. --claude-dir / CLAUDE_DIR / PROJECT_DIR env var support
+  2. Fixed encode_project_path() to replace only '/' and '.' (not all non-alphanumeric chars)
+  3. Specific exception types throughout (no bare except Exception)
+  4. Debug logging via logging module
+  5. Graceful fallback on output directory creation failures
+"""
+
+
 def launch_interactive():
     """Launch the interactive UI directly, or handle search if specified."""
+    print(_CUSTOM_VERSION_NOTE)
     # If no arguments provided, launch interactive UI
     if len(sys.argv) == 1:
         try:

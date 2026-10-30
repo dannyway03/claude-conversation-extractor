@@ -17,8 +17,19 @@ except ImportError:
     from search_conversations import ConversationSearcher
 
 
+_CUSTOM_VERSION_NOTE = """\
+claude-search [customized]
+  1. --claude-dir / CLAUDE_DIR / PROJECT_DIR env var support
+  2. Fixed encode_project_path() to replace only '/' and '.' (not all non-alphanumeric chars)
+  3. Specific exception types throughout (no bare except Exception)
+  4. Debug logging via logging module
+  5. Graceful fallback on output directory creation failures
+"""
+
+
 def main():
     """Main entry point for CLI search."""
+    print(_CUSTOM_VERSION_NOTE)
     # Get search term from stdin or arguments
     if len(sys.argv) > 1:
         # Search term provided as argument
